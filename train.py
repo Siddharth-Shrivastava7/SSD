@@ -15,7 +15,7 @@ from src.utils import generate_dboxes, Encoder, coco_classes
 from src.transform import SSDTransformer
 from src.loss import Loss
 from src.process import train, evaluate
-from src.dataset import collate_fn, CocoDataset
+from src.dataset import collate_fn, CocoDataset, MAVIdataset
 
 
 def get_args():
@@ -39,6 +39,7 @@ def get_args():
     parser.add_argument("--weight-decay", type=float, default=0.0005, help="momentum argument for SGD optimizer")
     parser.add_argument("--nms-threshold", type=float, default=0.5)
     parser.add_argument("--num-workers", type=int, default=4)
+    parser.add_argument("--num-classes", type= int, default=10)
 
     parser.add_argument('--local_rank', default=0, type=int,
                         help='Used for multi-process training. Can either be manually set ' +
@@ -62,7 +63,7 @@ def main(opt):
                     "num_workers": opt.num_workers,
                     "collate_fn": collate_fn}
 
-    test_params = {"batch_size": opt.batch_size * num_gpus,
+    val_params = {"batch_size": opt.batch_size * num_gpus,
                    "shuffle": False,
                    "drop_last": False,
                    "num_workers": opt.num_workers,
@@ -70,14 +71,16 @@ def main(opt):
 
     if opt.model == "ssd":
         dboxes = generate_dboxes(model="ssd")
-        model = SSD(backbone=ResNet(), num_classes=len(coco_classes))
+        model = SSD(backbone=ResNet(), num_classes=opt.num-classes)
     else:
         dboxes = generate_dboxes(model="ssdlite")
-        model = SSDLite(backbone=MobileNetV2(), num_classes=len(coco_classes))
-    train_set = CocoDataset(opt.data_path, 2017, "train", SSDTransformer(dboxes, (300, 300), val=False))
+        model = SSDLite(backbone=MobileNetV2(), num_classes=opt.num-classes)
+    # train_set = CocoDataset(opt.data_path, 2017, "train", SSDTransformer(dboxes, (300, 300), val=False))
+    train_set = MAVIdataset(opt.data_path, "train", SSDTransformer(dboxes, (300, 300))
     train_loader = DataLoader(train_set, **train_params)
-    test_set = CocoDataset(opt.data_path, 2017, "val", SSDTransformer(dboxes, (300, 300), val=True))
-    test_loader = DataLoader(test_set, **test_params)
+    # val_set = CocoDataset(opt.data_path, 2017, "val", SSDTransformer(dboxes, (300, 300), val=True))
+    val_set = MAVIdataset(opt.data_path, "val", SSDTransformer(dboxes, (300, 300))
+    val_loader = DataLoader(val_set, **val_params)
 
     encoder = Encoder(dboxes)
 
@@ -125,7 +128,7 @@ def main(opt):
 
     for epoch in range(first_epoch, opt.epochs):
         train(model, train_loader, epoch, writer, criterion, optimizer, scheduler, opt.amp)
-        evaluate(model, test_loader, epoch, writer, encoder, opt.nms_threshold)
+        evaluate(model, val_loader, epoch, writer, encoder, opt.nms_threshold)
 
         checkpoint = {"epoch": epoch,
                       "model_state_dict": model.module.state_dict(),

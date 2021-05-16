@@ -5,6 +5,8 @@ import torch
 from torchvision.datasets import CocoDetection
 from torch.utils.data.dataloader import default_collate
 import os
+from torch.utils.data import Dataset
+from PIL import Image
 
 def collate_fn(batch):
     items = list(zip(*batch))
@@ -54,3 +56,38 @@ class CocoDataset(CocoDetection):
         if self.transform is not None:
             image, (height, width), boxes, labels = self.transform(image, (height, width), boxes, labels)
         return image, target[0]["image_id"], (height, width), boxes, labels
+
+
+class MAVIdataset(Dataset):
+    def __init__(self, root, setname='train', transform=None):
+        self.root = root 
+        self.setname = setname
+        with open(os.path.join(self.root, self.setname + '_annotations_roundup.json'), 'r') as f:
+            self.data = json.load(f)
+        self.images = self.data['images']
+        self.annotations = self.data['annotations']
+
+        assert len(self.images) == len(self.annotations)
+        super(MAVIdataset,self).__init__()
+
+    def __len__(self):
+        return len(self.images)
+
+    def __getitem__(self, item):
+        self.impath[item] = os.path.join(self.root, self.setname, self.images[item]['filename']) 
+        image = Image.open(self.impath[item], mode = 'r')
+        width, height = image.size
+        boxes = []
+        labels = []
+        target = self.annotations[item]
+        if len(target) == 0:
+            return None, None, None, None, None
+        for annotation in target: 
+            bbox = annotation['bbox'] 
+            boxes.append([bbox[0] / width, bbox[1] / height, (bbox[0] + bbox[2]) / width, (bbox[1] + bbox[3]) / height]) # normalising the coordinates 
+            labels.append(0) # since only one class of polygon(text) so...
+        boxes = torch.tensor(boxes)
+        labels = torch.tensor(labels)
+        if self.transform is not None:
+            image, (height, width), boxes, labels = self.transform(image, (height, width), boxes, labels)
+        return image, target[0]["name"], (height, width), boxes, labels

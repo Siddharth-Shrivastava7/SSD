@@ -37,12 +37,12 @@ def train(model, train_loader, epoch, writer, criterion, optimizer, scheduler, i
         optimizer.zero_grad()
 
 
-def evaluate(model, test_loader, epoch, writer, encoder, nms_threshold):
+def evaluate(model, val_loader, epoch, writer, encoder, nms_threshold):
     model.eval()
     detections = []
-    category_ids = test_loader.dataset.coco.getCatIds()
-    for nbatch, (img, img_id, img_size, _, _) in enumerate(test_loader):
-        print("Parsing batch: {}/{}".format(nbatch, len(test_loader)), end="\r")
+    category_ids = val_loader.dataset.coco.getCatIds()
+    for nbatch, (img, img_id, img_size, _, _) in enumerate(val_loader):
+        print("Parsing batch: {}/{}".format(nbatch, len(val_loader)), end="\r")
         if torch.cuda.is_available():
             img = img.cuda()
         with torch.no_grad():
@@ -68,9 +68,9 @@ def evaluate(model, test_loader, epoch, writer, encoder, nms_threshold):
 
     detections = np.array(detections, dtype=np.float32)
 
-    coco_eval = COCOeval(test_loader.dataset.coco, test_loader.dataset.coco.loadRes(detections), iouType="bbox")
+    coco_eval = COCOeval(val_loader.dataset.coco, val_loader.dataset.coco.loadRes(detections), iouType="bbox")
     coco_eval.evaluate()
     coco_eval.accumulate()
     coco_eval.summarize()
 
-    writer.add_scalar("Test/mAP", coco_eval.stats[0], epoch)
+    writer.add_scalar("val/mAP", coco_eval.stats[0], epoch)
