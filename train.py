@@ -39,7 +39,8 @@ def get_args():
     parser.add_argument("--weight-decay", type=float, default=0.0005, help="momentum argument for SGD optimizer")
     parser.add_argument("--nms-threshold", type=float, default=0.5)
     parser.add_argument("--num-workers", type=int, default=4)
-    parser.add_argument("--num-classes", type= int, default=10)
+    parser.add_argument("--num-classes", type= int, default=81) # 80 coco (thing classes) + 1 background class
+    parser.add_argument("--resume", action='store_true', help = "resume the training from the saved checkpoint")
 
     parser.add_argument('--local_rank', default=0, type=int,
                         help='Used for multi-process training. Can either be manually set ' +
@@ -56,6 +57,8 @@ def main(opt):
     else:
         torch.manual_seed(123)
         num_gpus = 1
+    # print(opt.num_workers)
+    # print('>>>>')
 
     train_params = {"batch_size": opt.batch_size * num_gpus,
                     "shuffle": True,
@@ -71,15 +74,16 @@ def main(opt):
 
     if opt.model == "ssd":
         dboxes = generate_dboxes(model="ssd")
-        model = SSD(backbone=ResNet(), num_classes=opt.num-classes)
+        model = SSD(backbone=ResNet(), num_classes=opt.num_classes)
     else:
         dboxes = generate_dboxes(model="ssdlite")
-        model = SSDLite(backbone=MobileNetV2(), num_classes=opt.num-classes)
+        model = SSDLite(backbone=MobileNetV2(), num_classes=opt.num_classes)
     # train_set = CocoDataset(opt.data_path, 2017, "train", SSDTransformer(dboxes, (300, 300), val=False))
-    train_set = MAVIdataset(opt.data_path, "train", SSDTransformer(dboxes, (300, 300))
+    # print('yo')
+    train_set = MAVIdataset(opt.data_path, "train", SSDTransformer(dboxes, (300, 300), val=False))
     train_loader = DataLoader(train_set, **train_params)
     # val_set = CocoDataset(opt.data_path, 2017, "val", SSDTransformer(dboxes, (300, 300), val=True))
-    val_set = MAVIdataset(opt.data_path, "val", SSDTransformer(dboxes, (300, 300))
+    val_set = MAVIdataset(opt.data_path, "val", SSDTransformer(dboxes, (300, 300), val=True))
     val_loader = DataLoader(val_set, **val_params)
 
     encoder = Encoder(dboxes)
@@ -87,9 +91,10 @@ def main(opt):
     opt.lr = opt.lr * num_gpus * (opt.batch_size / 32)
     criterion = Loss(dboxes)
 
-    optimizer = torch.optim.SGD(model.parameters(), lr=opt.lr, momentum=opt.momentum,
-                                weight_decay=opt.weight_decay,
-                                nesterov=True)
+    # optimizer = torch.optim.SGD(model.parameters(), lr=opt.lr, momentum=opt.momentum,
+    #                             weight_decay=opt.weight_decay,
+    #                             nesterov=True)
+    optimizer = torch.optim.Adam(model.parameters(), lr=opt.lr, weight_decay=opt.weight_decay)
     scheduler = MultiStepLR(optimizer=optimizer, milestones=opt.multistep, gamma=0.1)
 
     if torch.cuda.is_available():
@@ -117,7 +122,7 @@ def main(opt):
 
     writer = SummaryWriter(opt.log_path)
 
-    if os.path.isfile(checkpoint_path):
+    if os.path.isfile(checkpoint_path) and opt.resume: 
         checkpoint = torch.load(checkpoint_path)
         first_epoch = checkpoint["epoch"] + 1
         model.module.load_state_dict(checkpoint["model_state_dict"])

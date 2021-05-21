@@ -1,0 +1,11 @@
+===============================
+2349130.pbshpc
+vsky017.hpc.iitd.ac.in
+===============================
+/home/cse/phd/anz208849/SSD
+85898 85898
+PNCNN {}
+Loading checkpoint: ../scratch/saved_models/kitti/models/pncnn/0515_230258/checkpoint-epoch10.pth ...
+Ause calculating.....
+
+==> Evaluating Uncertainty for Epoch [10]:

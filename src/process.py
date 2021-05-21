@@ -5,7 +5,7 @@ import numpy as np
 from tqdm.autonotebook import tqdm
 import torch
 from pycocotools.cocoeval import COCOeval
-from apex import amp
+# from apex import amp
 
 
 def train(model, train_loader, epoch, writer, criterion, optimizer, scheduler, is_amp):
@@ -72,5 +72,6 @@ def evaluate(model, val_loader, epoch, writer, encoder, nms_threshold):
     coco_eval.evaluate()
     coco_eval.accumulate()
     coco_eval.summarize()
+    print(coco_eval.stats[0])
 
     writer.add_scalar("val/mAP", coco_eval.stats[0], epoch)
